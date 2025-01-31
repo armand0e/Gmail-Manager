@@ -1,0 +1,106 @@
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap');
+
+    body {
+        font-family: 'Lato', sans-serif;
+        margin: 20px;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+
+    th, td {
+        border: 1px solid #ddd;
+        padding: 10px;
+        vertical-align: top;
+    }
+
+    th {
+        background-color: #f2f2f2;
+        text-align: left;
+    }
+
+    .email-header {
+        background-color: #f9f9f9;
+        padding: 10px;
+        font-weight: bold;
+    }
+
+    .email-body-container {
+        width: 100%;
+        height: 400px;
+        overflow: auto;
+        border: 1px solid #ccc;
+        resize: vertical;
+    }
+
+    .email-iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+    }
+
+    .reply-container {
+        width: 40%;
+        margin-top: 10px;
+    }
+
+    .editor-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        background: #f1f1f1;
+        padding: 5px;
+        border: 1px solid #ccc;
+        border-bottom: none;
+    }
+
+    .editor-toolbar button, .editor-toolbar select, .editor-toolbar input {
+        padding: 5px;
+        font-size: 14px;
+        cursor: pointer;
+        border: 1px solid #ccc;
+        background: white;
+    }
+
+    .editor-toolbar button:hover {
+        background: #e0e0e0;
+    }
+
+    .color-picker {
+        border: none;
+        padding: 2px;
+        width: 30px;
+        height: 30px;
+    }
+
+    .editor {
+        width: 100%;
+        min-height: 150px;
+        border: 1px solid #ccc;
+        padding: 10px;
+        overflow: auto;
+        outline: none;
+        background: #fff;
+        cursor: text;
+    }
+
+    .editor:empty:before {
+        content: attr(placeholder);
+        color: #aaa;
+        font-style: italic;
+    }
+
+    .editor:focus {
+        border-color: #4285f4;
+        animation: blink-caret 0.8s step-end infinite;
+    }
+
+    @keyframes blink-caret {
+        50% { border-right-color: transparent; }
+    }
+</style>
+  

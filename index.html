@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Email Manager</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.3/purify.min.js"></script>
+
+  <?!= include('styles'); ?> <!-- Load CSS -->
+</head>
+<body>
+  <h1>Email Manager</h1>
+
+  <?!= include('toolbar'); ?>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Mail</th>
+        <th>Reply</th>
+      </tr>
+    </thead>
+    <tbody id="emailTable"></tbody>
+  </table>
+
+  <?!= include('scripts'); ?> <!-- Load JavaScript -->
+</body>
+</html>

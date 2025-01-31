@@ -1,0 +1,43 @@
+<div class="editor-toolbar">
+    <select title="Font" onchange="formatText('${editorId}', 'fontName', this.value)">
+      <option value="Arial">Arial</option>
+      <option value="Times New Roman">Times New Roman</option>
+      <option value="Courier New">Courier New</option>
+    </select>
+  
+    <select title="Size" onchange="formatText('${editorId}', 'fontSize', this.value)">
+      <option value="1">Small</option>
+      <option value="3" selected>Normal</option>
+      <option value="5">Large</option>
+      <option value="7">Huge</option>
+    </select>
+  
+    <button title="Bold" onclick="formatText('${editorId}', 'bold')"><b>B</b></button>
+    <button title="Italic" onclick="formatText('${editorId}', 'italic')"><i>I</i></button>
+    <button title="Underline" onclick="formatText('${editorId}', 'underline')"><u>U</u></button>
+    <button title="Strikethrough" onclick="formatText('${editorId}', 'strikeThrough')"><s>S</s></button>
+  
+    <input type="color" id="${textColorId}" class="color-picker" title="Text Color" onchange="formatText('${editorId}', 'foreColor', this.value)">
+    <input type="color" id="${bgColorId}" class="color-picker" title="Highlight Color" value="#ffffff" onchange="formatText('${editorId}', 'hiliteColor', this.value)">
+  
+    <select title="Text Alignment" onchange="formatText('${editorId}', this.value)">
+      <option value="justifyLeft">Left</option>
+      <option value="justifyCenter">Center</option>
+      <option value="justifyRight">Right</option>
+      <option value="justifyFull">Justify</option>
+    </select>
+  
+    <button title="Numbered List" onclick="formatText('${editorId}', 'insertOrderedList')">1.</button>
+    <button title="Bulleted List" onclick="formatText('${editorId}', 'insertUnorderedList')">•</button>
+  
+    <input type="file" id="${imageUploaderId}" style="display: none;" accept="image/*" onchange="convertImageToBase64(event, '${editorId}')">
+    <button title="Insert Image" onclick="document.getElementById('${imageUploaderId}').click()">🖼️</button>
+      
+    <button title="Insert Link" onclick="formatText('${editorId}', 'createLink', prompt('Enter URL:'))">🔗</button>
+    <button title="Remove Formatting" onclick="formatText('${editorId}', 'removeFormat')">✖</button>
+  </div>
+  
+  <div id="${editorId}" class="editor" contenteditable="true" placeholder="Write your reply..."></div>
+  <button onclick="sendReply('${email.id}', '${editorId}')">Send Reply</button>
+  <button onclick="dismissEmail('${email.id}')" style="background-color: red; color: white;">Ignore</button>
+  
