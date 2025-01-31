@@ -1,131 +1,124 @@
 <script>
   let currentPage = 0;
-  let drafts = {};
-  let emailStatus = { replied: {}, dismissed: {} };
+  let threadList = {};
+  let threadStatus = { replied: {}, dismissed: {} };
   let isLoading = false;
 
 
-  function loadEmails(page) {
+  function loadThreads(page, filter = "all") {
     if (page < 0) return;
 
     google.script.run
       .withSuccessHandler(status => {
-        emailStatus = status; // Load replied and ignored emails from the backend
+        threadStatus = status;
         google.script.run
-          .withSuccessHandler(emails => {
-            if (emails.length === 0) {
+          .withSuccessHandler(threads => {
+            if (threads.length === 0) {
               isLoading = false;
               return;
             }
-
             currentPage = page;
-            appendEmails(emails);
+            appendThreads(threads);
           })
           .withFailureHandler(error => {
             console.error("Error loading emails:", error.message);
           })
-          .getEmails(page);
+          .getThreads(page, filter);
       })
-      .getEmailStatus(); // Fetch replied and ignored emails on load
+      .getThreadStatus();
   }
 
-  function appendEmails(emails) {
+  window.onscroll = function () {
+    if (isLoading) return;
+
+    if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 50) {
+      isLoading = true;
+      loadThreads(currentPage + 1);
+    }
+  };
+
+  function appendThreads(threads) {
     const table = document.getElementById('emailTable');
 
-    emails.forEach((email, index) => {
-      if (emailStatus.dismissed[email.id]) {
-        return; // Skip dismissed emails
-      }
-
-      const editorId = `reply-editor-${email.id}`;
-      const iframeId = `email-iframe-${index + currentPage * emails.length}`; // Unique ID across pages
+    threads.forEach((thread, index) => {
 
       const row = document.createElement('tr');
-      row.id = `email-row-${email.id}`;
-      row.innerHTML = emailBodyTemplate(email, iframeId) + replyBoxTemplate(email, editorId);
+      row.id = `email-row-${thread.threadId}`;
+      row.innerHTML = emailThreadTemplate(thread, index);
       table.appendChild(row);
     });
 
     isLoading = false;
 
-    // Ensure email body content is injected properly for newly added emails
-    setTimeout(() => injectEmailBodies(emails, currentPage), 500);
+    setTimeout(() => injectThreadBodies(threads), 500);
   }
 
-  function injectEmailBodies(emails, pageNumber = 0) {
-    emails.forEach((email, index) => {
-      const iframeId = `email-iframe-${index + pageNumber * emails.length}`; // Match with unique ID in appendEmails
+  function injectThreadBodies(threads) {
+    threads.forEach((thread, index) => {
+      const iframeId = `email-iframe-${index}`;
       const iframe = document.getElementById(iframeId);
       if (!iframe) return;
 
-      const sanitizedBody = DOMPurify.sanitize(email.body, { USE_PROFILES: { html: true } });
+      let threadHtml = "";
 
-      // Use `srcdoc` if supported (safer method)
+      thread.messages.forEach((msg, idx) => {
+        if (idx === 0) {
+          threadHtml += `<div class="email-header"><strong>${msg.sender} - ${thread.subject}</strong></div>`;
+        } else {
+          threadHtml += `<div class="email-subheader" style="font-size: small; color: gray;">${msg.sender} - ${msg.date}</div>`;
+        }
+        threadHtml += `<div class="email-body">${DOMPurify.sanitize(msg.body, { USE_PROFILES: { html: true } })}</div><hr>`;
+      });
+
       if ('srcdoc' in iframe) {
-        iframe.srcdoc = sanitizedBody;
+        iframe.srcdoc = threadHtml;
       } else {
-        // Fallback for browsers that do not support `srcdoc`
         const doc = iframe.contentWindow.document;
         doc.open();
-        doc.write(sanitizedBody);
+        doc.write(threadHtml);
         doc.close();
       }
     });
   }
 
-  function displayEmails(emails) {
-    const table = document.getElementById('emailTable');
-    table.innerHTML = '';
-
-    emails.forEach((email, index) => {
-      if (emailStatus.dismissed[email.id]) {
-        return; // Skip dismissed emails
-      }
-
-      const editorId = `reply-editor-${email.id}`;
-      const iframeId = `email-iframe-${index}`; // Unique identifier for the first page
-
-      const row = document.createElement('tr');
-      row.id = `email-row-${email.id}`;
-      row.innerHTML = emailBodyTemplate(email, iframeId) + replyBoxTemplate(email, editorId);
-      table.appendChild(row);
-    });
-
-    // Ensure email body content is injected properly
-    setTimeout(() => injectEmailBodies(emails, 0), 500);
-  }
-
-  function dismissEmail(emailId) {
+  function ignoreThread(threadId) {
     google.script.run
       .withSuccessHandler(() => {
-        emailStatus.dismissed[emailId] = true; // Save locally
-        collapseEmailRow(emailId, "❌ Ignored", "red");
+        threadStatus.dismissed[threadId] = true;
+        collapseThreadRow(threadId, "❌ Ignored", "red");
       })
-      .dismissEmail(emailId); // Save to backend
+      .withFailureHandler(error => {
+        console.error("Error dismissing thread:", error.message);
+      })
+      .dismissThread(threadId);
   }
 
-  function sendReply(emailId, editorId) {
+  function sendReply(threadId, editorId) {
     const editor = document.getElementById(editorId);
     const replyHtml = editor.innerHTML;
 
-    google.script.run
-      .withSuccessHandler(() => {
-        google.script.run.markAsReplied(emailId);
-        emailStatus.replied[emailId] = true;
-        collapseEmailRow(emailId, "✅ Replied", "green");
-      })
-      .sendReply(emailId, replyHtml);  
+    google.script.run.sendReply(threadId, replyHtml);
+    markThreadAsReplied(threadId);
+    collapseThreadRow(threadId, "✅ Replied", "green");
   }
 
-  function collapseEmailRow(emailId, statusText, color) {
-    const row = document.getElementById(`email-row-${emailId}`);
+  function markThreadAsReplied(threadId) {
+    google.script.run.markAsReplied(threadId);
+    threadStatus.replied[threadId] = true;
+  }
+  
+  function saveThreadForLater(threadId) {
+    google.script.run.saveForLater(threadId);
+    threadStatus.saved[threadId] = true;
+  }
+
+  function collapseThreadRow(threadId, statusText, color) {
+    const row = document.getElementById(`thread-row-${threadId}`);
     if (!row) return;
 
-    // Find the email header inside the row
     const emailHeader = row.querySelector(".email-header");
     if (!emailHeader) return;
 
-    // Preserve the header, remove everything else
     row.innerHTML = `
       <td colspan="2">
         <div class="email-header">
@@ -135,62 +128,45 @@
     `;
   }
 
-  function emailBodyTemplate(email, iframeId) {
+  function emailThreadTemplate(thread, iframeId) {
     return `
       <td>
-        <?!= include('email-body'); ?>
+        <?!= include('thread-body'); ?>
       </td>
     `
-    .replace(/\${email.sender}/g, email.sender)
-    .replace(/\${email.subject}/g, email.subject)
+    .replace(/\${thread.sender}/g, thread.sender)
+    .replace(/\${thread.subject}/g, thread.subject)
     .replace(/\${iframeId}/g, iframeId)
   }
 
-  function replyBoxTemplate(email, editorId, textColorId, bgColorId, imageUploaderId) {
+  function replyBoxTemplate(thread, editorId, textColorId, bgColorId, imageUploaderId) {
     return `
       <td class="reply-container">
         <?!= include('reply-box'); ?>
       </td>
     `
     .replace(/\${editorId}/g, editorId)
-    .replace(/\${email.id}/g, email.id)
+    .replace(/\${thread.id}/g, thread.id)
     .replace(/\${textColorId}/g, textColorId)
     .replace(/\${bgColorId}/g, bgColorId)
     .replace(/\${imageUploaderId}/g, imageUploaderId);
   }
-
-  function convertImageToBase64(event, editorId) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = function (e) {
-      const fileName = file.name;
-      
-      google.script.run
-        .withSuccessHandler(cid => {
-          // Insert inline image using CID
-          const imgTag = `<img src="cid:${cid}" style="max-width: 100%;">`;
-          document.getElementById(editorId).innerHTML += imgTag;
-        })
-        .uploadInlineImage(fileName, e.target.result);
-    };
-    reader.readAsDataURL(file);
-  }
   
-  function filterEmails(filter) {
+  function filterThreads(filter) {
     const rows = document.querySelectorAll("#emailTable tr");
 
     rows.forEach(row => {
-      const emailId = row.id.replace("email-row-", "");
+      const threadId = row.id.replace("email-row-", "");
 
-      if (filter === "all") {
+      if (filter === "all" && !threadStatus.replied[threadId] && !threadStatus.dismissed[threadId]) {
+        loadThreads(0, 'all')
         row.style.display = "table-row";
-      } else if (filter === "replied" && emailStatus.replied[emailId]) {
+      } else if (filter === "inbox" && !threadStatus.replied[threadId] && !threadStatus.dismissed[threadId]) {
+        loadThreads(0, 'primary')
         row.style.display = "table-row";
-      } else if (filter === "ignored" && emailStatus.dismissed[emailId]) {
+      } else if (filter === "replied" && threadStatus.replied[threadId]) {
         row.style.display = "table-row";
-      } else if (filter === "inbox" && !emailStatus.replied[emailId] && !emailStatus.dismissed[emailId]) {
+      } else if (filter === "ignored" && threadStatus.dismissed[threadId]) {
         row.style.display = "table-row";
       } else {
         row.style.display = "none";
@@ -202,16 +178,7 @@
     document.execCommand(command, false, value);
   }
 
-  window.onscroll = function () {
-    if (isLoading) return;
-
-    if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 50) {
-      isLoading = true;
-      loadEmails(currentPage + 1);
-    }
-  };
-
   window.onload = () => {
-    loadEmails(0);
+    loadThreads(0);
   };
 </script>

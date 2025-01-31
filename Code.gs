@@ -13,68 +13,83 @@ function include(filename) {
     .getContent();
  }
 
-// Fetch emails for a specific page
-function getEmails(page = 0) {
-  const PAGE_SIZE = 10; // Number of threads per page
-  const startIndex = page * PAGE_SIZE;
-  try {
-    const threads = GmailApp.getInboxThreads(startIndex, PAGE_SIZE);
-    const emails = threads.map(thread => {
-      const message = thread.getMessages()[0];
-      return {
-        id: message.getId(),
-        sender: message.getFrom(),
-        subject: message.getSubject(),
-        body: message.getBody()
-      };
-    });
+function getThreads(page, filter = "primary") {
+  var PAGE_SIZE = 10;
+  var startIndex = page * PAGE_SIZE;
+  var searchQuery = "";
 
-    return emails;
-  } catch (error) {
-    Logger.log("Error in getEmails: " + error.message);
-    return [];
+  // Apply correct search queries based on selected filter
+  if (filter === "all") {
+    searchQuery = "in:all -in:scheduled -in:trash -in:sent";
+  } else {
+    searchQuery = "category:primary"; // Default fallback
   }
-}
 
-function uploadInlineImage(fileName, base64Data) {
-  var blob = Utilities.newBlob(Utilities.base64Decode(base64Data.split(',')[1]), MimeType.PNG, fileName);
-  // Generate a Content-ID for embedding in emails
-  var contentId = fileName.replace(/\s+/g, '_') + "@gmail.com";
-  // Save to Drive (if needed) or use directly
-  var file = DriveApp.createFile(blob);
-  return contentId;
+  var threads = GmailApp.search(searchQuery, startIndex, PAGE_SIZE); 
+  var emailData = [];
+
+  threads.forEach(thread => {
+    var messages = thread.getMessages();
+    var threadId = thread.getId();
+    var subject = thread.getFirstMessageSubject();
+    var mostRecentMessage = messages[messages.length - 1];
+    var sender = mostRecentMessage.getFrom();
+    var threadStatus = getThreadStatus(threadId);
+
+    var threadData = {
+      threadId: threadId,
+      sender: sender,
+      subject: subject,
+      status: threadStatus,
+      messages: messages.map(msg => ({
+        id: msg.getId(),
+        sender: msg.getFrom(),
+        date: msg.getDate().toLocaleString(),
+        body: msg.getBody()
+      })).reverse() // Reverse to show the most recent message at the top
+    };
+
+    emailData.push(threadData);
+  });
+
+  return emailData;
 }
 
 var properties = PropertiesService.getUserProperties();
 
-// Store a replied email ID.
-function markAsReplied(emailId) {
-  var repliedEmails = JSON.parse(properties.getProperty("repliedEmails") || "{}");
-  repliedEmails[emailId] = true;
-  properties.setProperty("repliedEmails", JSON.stringify(repliedEmails));
+// Store a replied thread ID.
+function markAsReplied(threadId) {
+  var repliedThreads = JSON.parse(PropertiesService.getUserProperties().getProperty("repliedThreads") || "{}");
+  repliedThreads[threadId] = true;
+  PropertiesService.getUserProperties().setProperty("repliedThreads", JSON.stringify(repliedThreads));
 }
 
-// Store a dismissed email ID.
-function dismissEmail(emailId) {
-  var dismissedEmails = JSON.parse(properties.getProperty("dismissedEmails") || "{}");
-  dismissedEmails[emailId] = true;
-  properties.setProperty("dismissedEmails", JSON.stringify(dismissedEmails));
+// Store a dismissed thread ID.
+function dismissThread(threadId) {
+  var dismissedThreads = JSON.parse(PropertiesService.getUserProperties().getProperty("dismissedThreads") || "{}");
+  dismissedThreads[threadId] = true;
+  PropertiesService.getUserProperties().setProperty("dismissedThreads", JSON.stringify(dismissedThreads));
 }
 
-// Retrieve replied and dismissed email IDs.
-function getEmailStatus() {
+// Retrieve replied and dismissed thread IDs.
+function getThreadStatus(threadId) {
+  var repliedThreads = JSON.parse(PropertiesService.getUserProperties().getProperty("repliedThreads") || "{}");
+  var dismissedThreads = JSON.parse(PropertiesService.getUserProperties().getProperty("dismissedThreads") || "{}");
+
   return {
-    replied: JSON.parse(properties.getProperty("repliedEmails") || "{}"),
-    dismissed: JSON.parse(properties.getProperty("dismissedEmails") || "{}")
+    replied: !!repliedThreads[threadId], // True if thread is marked as replied
+    dismissed: !!dismissedThreads[threadId] // True if thread is marked as dismissed
   };
 }
 
-function sendReply(emailId, replyHtml) {
-  try {
-    const thread = GmailApp.getMessageById(emailId).getThread();
+
+function sendReply(threadId, replyHtml) {
+  var thread = GmailApp.getThreadById(threadId);
+  if (thread) {
     thread.reply(replyHtml, { htmlBody: replyHtml });
-    return `Reply sent successfully for email ID: ${emailId}`;
-  } catch (e) {
-    return `Error sending reply for email ID ${emailId}: ${e.message}`;
+    markAsReplied(threadId);
+    return `Reply sent successfully for threa ID: ${threadId}`;
   }
+  return `Error sending reply for thread ID ${threadId}: ${e.message}`;
 }
+
